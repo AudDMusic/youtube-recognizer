@@ -1,6 +1,5 @@
 # youtube-recognizer
-Recognizse music from YouTube video using [AudD music recognition API](https://audd.io/). 
-Also generates .csv with all songs from the video or print first found song.
+Recognizes music from YouTube video using [AudD music recognition API](https://audd.io/).</p>Also generates .csv with all songs from the video or print first found song.
 
 Needs ffmpeg to be [installed](https://github.com/AudDMusic/youtube-recognozer/wiki/Installing-FFmpeg).
 
