@@ -2,8 +2,6 @@
 Recognize music from YouTube video using AudD music recognition API.
 Also generates .csv with all songs from the video or print first found song.
 
-## WILL NOT WORK UNTIL NEW AUDD API VERSION RELEASE ON FEBRUARY 6 
-
 Needs ffmpeg to be [installed](https://github.com/adaptlearning/adapt_authoring/wiki/Installing-FFmpeg).
 
 Usage:
