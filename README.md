@@ -1,4 +1,4 @@
-# youtube-recognozer
+# youtube-recognizer
 Recognize music from YouTube video using AudD music recognition API.
 Also generates .csv with all songs from the video or print first found song.
 
