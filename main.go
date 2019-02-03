@@ -220,7 +220,7 @@ func remove(dir string) {
 
 func main() {
 	secondsPerFileFlag := flag.Int("s", 9, "Seconds per audio file")
-	UrlFlag := flag.String("url", "https://www.youtube.com/watch?v=s5x1dxc7FWk", "Link to the YouTube video")
+	UrlFlag := flag.String("url", "https://www.youtube.com/watch?v=ANEOD16twxo", "Link to the YouTube video")
 	untilFirstFlag := flag.Bool("first", false, "Send requests only until first result")
 	apiTokenFlag := flag.String("api_token", "test", "AudD API token")
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
