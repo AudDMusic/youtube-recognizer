@@ -52,8 +52,8 @@ import (
 
 type AudDResponse struct {
 	Status string `json:"status"`
-	Error struct{
-		ErrorCode int `json:"error_code"`
+	Error  struct {
+		ErrorCode    int    `json:"error_code"`
 		ErrorMessage string `json:"error_message"`
 	} `json:"error"`
 	Result []SongInfo `json:"result"`
