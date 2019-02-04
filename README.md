@@ -3,6 +3,8 @@ Recognizes music from YouTube video using [AudD music recognition API](https://a
 
 Needs ffmpeg to be [installed](https://github.com/AudDMusic/youtube-recognozer/wiki/Installing-FFmpeg).
 
+[![Usage demo](https://img.youtube.com/vi/j1ChhoqdlsM/0.jpg)](https://www.youtube.com/watch?v=j1ChhoqdlsM)
+
 Usage:
 ```bash
 ./youtube-recognizer
