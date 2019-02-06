@@ -100,7 +100,7 @@ func AudDAPIUpload(params map[string]string, reader io.Reader, apiToken string) 
 		_ = writer.WriteField(key, val)
 	}
 	writer.Close()
-	req, _ := http.NewRequest("POST", "https://api.audd.io/v2/", body)
+	req, _ := http.NewRequest("POST", "https://api.audd.io/", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	client := &http.Client{}
 	resp, err := client.Do(req)
