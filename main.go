@@ -43,6 +43,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,8 +113,8 @@ func AudDAPIUpload(params map[string]string, reader io.Reader, apiToken string) 
 	return respBody
 }
 
-func DownloadYoutubeVideo(Url string, file *os.File) {
-	vid, err := ytdl.GetVideoInfo(Url)
+func DownloadYoutubeVideo(Url *url.URL, file *os.File) {
+	vid, err := ytdl.GetVideoInfoFromURL(Url)
 	if err != nil {
 		panic(err)
 		return
@@ -226,7 +227,10 @@ func main() {
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
 	flag.Parse()
 	secondsPerFile := *secondsPerFileFlag
-	Url := *UrlFlag
+	Url, err := url.Parse(*UrlFlag)
+	if err != nil {
+		panic(err)
+	}
 	untilFirst := *untilFirstFlag
 	apiToken := *apiTokenFlag
 	pathToCSV := *pathToCSVFlag
