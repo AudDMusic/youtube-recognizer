@@ -49,6 +49,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type AudDResponse struct {
@@ -68,6 +69,7 @@ type SongInfo struct {
 	Label       string `json:"label"`
 	Underground bool   `json:"underground"`
 	TimeCode    string `json:"timecode"`
+	SongLink    string `json:"song_link"`
 	Start       int    `json:"start,omitempty"`
 	End         int    `json:"end,omitempty"`
 }
@@ -125,8 +127,11 @@ func DownloadYoutubeVideo(Url string, file *os.File) error {
 	return c.Download(context.TODO(), vid, vid.Formats[0], file)
 }
 
-func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, apiToken string) []SongInfo {
+func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, apiToken string, skip, every int) ([]SongInfo, error) {
 	files, _ := ioutil.ReadDir(dir)
+	if len(files) == 0 {
+		return []SongInfo{}, fmt.Errorf("no audio files found (please make sure ffmpeg is installed)")
+	}
 	if untilFirst {
 		for _, fileInfo := range files {
 			file, err := os.Open(dir + string(os.PathSeparator) + fileInfo.Name())
@@ -138,15 +143,21 @@ func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, api
 			if len(result) > 0 {
 				Json, _ := json.Marshal(result[0])
 				fmt.Printf("%v\n", string(Json))
-				return []SongInfo{result[0]}
+				return []SongInfo{result[0]}, nil
 			}
 		}
-		return []SongInfo{}
+		return []SongInfo{}, nil
 	}
 	results := make([][]SongInfo, len(files))
 	var mu = &sync.Mutex{}
 	wg := &sync.WaitGroup{}
 	for i, fileInfo := range files {
+		if i % 20 == 19 {
+			time.Sleep(2 * time.Second)
+		}
+		if i % (skip+every) >= every {
+			continue
+		}
 		wg.Add(1)
 		go func(fileInfo os.FileInfo, i int, dir string) {
 			defer wg.Done()
@@ -186,7 +197,7 @@ func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, api
 			result = append(result, song)
 		}
 	}
-	return result
+	return result, nil
 }
 
 func SplitVideo(path, tmpDir string, secondsPerFile int) {
@@ -228,12 +239,16 @@ func main() {
 	untilFirstFlag := flag.Bool("first", false, "Send requests only until first result")
 	apiTokenFlag := flag.String("api_token", "test", "AudD API token")
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
+	skipFlag := flag.Int("skip", 0, "Skip audio files")
+	everyFlag := flag.Int("every", 1, "Audio files between skips")
 	flag.Parse()
 	secondsPerFile := *secondsPerFileFlag
 	Url := *UrlFlag
 	untilFirst := *untilFirstFlag
 	apiToken := *apiTokenFlag
 	pathToCSV := *pathToCSVFlag
+	skip := *skipFlag
+	every := *everyFlag
 	videoFile, err := os.Create("video.mp4")
 	if err != nil {
 		panic(err)
@@ -251,7 +266,10 @@ func main() {
 	}
 	SplitVideo(videoFile.Name(), dir, secondsPerFile)
 	fmt.Println("Sending files to AudD API...")
-	songs := RecognizeMultipleFiles(untilFirst, dir, secondsPerFile, apiToken)
+	songs, err := RecognizeMultipleFiles(untilFirst, dir, secondsPerFile, apiToken, skip, every)
+	if err != nil {
+		panic(err)
+	}
 	remove(dir)
 	if untilFirst {
 		return
