@@ -33,17 +33,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/otium/ytdl"
+	"github.com/Mihonarium/ytdl"
 	"io"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -113,13 +113,16 @@ func AudDAPIUpload(params map[string]string, reader io.Reader, apiToken string) 
 	return respBody
 }
 
-func DownloadYoutubeVideo(Url *url.URL, file *os.File) {
-	vid, err := ytdl.GetVideoInfoFromURL(Url)
+func DownloadYoutubeVideo(Url string, file *os.File) error {
+	c := ytdl.DefaultClient
+	vid, err := c.GetVideoInfo(context.TODO(), Url)
 	if err != nil {
-		panic(err)
-		return
+		return err
 	}
-	vid.Download(vid.Formats[0], file)
+	if len(vid.Formats) == 0 {
+		return fmt.Errorf("ytdl can't find available formats")
+	}
+	return c.Download(context.TODO(), vid, vid.Formats[0], file)
 }
 
 func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, apiToken string) []SongInfo {
@@ -227,10 +230,7 @@ func main() {
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
 	flag.Parse()
 	secondsPerFile := *secondsPerFileFlag
-	Url, err := url.Parse(*UrlFlag)
-	if err != nil {
-		panic(err)
-	}
+	Url := *UrlFlag
 	untilFirst := *untilFirstFlag
 	apiToken := *apiTokenFlag
 	pathToCSV := *pathToCSVFlag
@@ -240,7 +240,10 @@ func main() {
 	}
 	defer videoFile.Close()
 	fmt.Println("Downloading video...")
-	DownloadYoutubeVideo(Url, videoFile)
+	err = DownloadYoutubeVideo(Url, videoFile)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("Generating audio files...")
 	dir, err := ioutil.TempDir(getCurrentDir(), "temp_")
 	if err != nil {
