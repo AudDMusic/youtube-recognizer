@@ -1,5 +1,5 @@
 # youtube-recognizer
-Recognizes music from YouTube video using [AudD music recognition API](https://audd.io/). Also generates .csv with all songs from the video or prints first found song.
+Recognizes music from a YouTube video using the [Music Recognition API](https://audd.io/). Generates a .csv file with all the songs from the video.
 
 Usage:
 ```bash
