@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2019 AudD, LLC. All rights reserved.
- * Copyright (c) 2019 Mikhail Samin. All rights reserved.
+ * Copyright (c) 2020 AudD, LLC. All rights reserved.
+ * Copyright (c) 2020 Mikhail Samin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,88 +32,16 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Mihonarium/ytdl"
-	"io"
-	"io/ioutil"
+	"github.com/AudDMusic/audd-go"
+	"github.com/rylio/ytdl"
 	"log"
-	"mime/multipart"
-	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
-	"sync"
-	"time"
 )
-
-type AudDResponse struct {
-	Status string `json:"status"`
-	Error  struct {
-		ErrorCode    int    `json:"error_code"`
-		ErrorMessage string `json:"error_message"`
-	} `json:"error"`
-	Result []SongInfo `json:"result"`
-}
-
-type SongInfo struct {
-	Artist      string `json:"artist"`
-	Title       string `json:"title"`
-	Album       string `json:"album"`
-	ReleaseDate string `json:"release_date"`
-	Label       string `json:"label"`
-	Underground bool   `json:"underground"`
-	TimeCode    string `json:"timecode"`
-	SongLink    string `json:"song_link"`
-	Start       int    `json:"start,omitempty"`
-	End         int    `json:"end,omitempty"`
-}
-
-func SecondsToTime(s int) string {
-	return fmt.Sprintf("%02d:%02d", s/60, s%60)
-}
-
-func AudDAPIRecognizeAll(reader io.Reader, apiToken string) []SongInfo {
-	apiResponse := AudDAPIUpload(map[string]string{"all": "true"}, reader, apiToken)
-	var result AudDResponse
-	json.Unmarshal(apiResponse, &result)
-	//fmt.Println(result.Result)
-	if result.Status != "success" {
-		fmt.Println("Request failed:", result.Error.ErrorMessage)
-		return nil
-	}
-	return result.Result
-}
-
-func AudDAPIUpload(params map[string]string, reader io.Reader, apiToken string) []byte {
-	params["api_token"] = apiToken
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "file")
-	if err != nil {
-		panic(err)
-	}
-	io.Copy(part, reader)
-	for key, val := range params {
-		_ = writer.WriteField(key, val)
-	}
-	writer.Close()
-	req, _ := http.NewRequest("POST", "https://api.audd.io/", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-	respBody, _ := ioutil.ReadAll(resp.Body)
-	return respBody
-}
 
 func DownloadYoutubeVideo(Url string, file *os.File) error {
 	c := ytdl.DefaultClient
@@ -127,89 +55,15 @@ func DownloadYoutubeVideo(Url string, file *os.File) error {
 	return c.Download(context.TODO(), vid, vid.Formats[0], file)
 }
 
-func RecognizeMultipleFiles(untilFirst bool, dir string, secondsPerFile int, apiToken string, skip, every int) ([]SongInfo, error) {
-	files, _ := ioutil.ReadDir(dir)
-	if len(files) == 0 {
-		return []SongInfo{}, fmt.Errorf("no audio files found (please make sure ffmpeg is installed)")
-	}
-	if untilFirst {
-		for _, fileInfo := range files {
-			file, err := os.Open(dir + string(os.PathSeparator) + fileInfo.Name())
-			if err != nil {
-				panic(err)
-			}
-			result := AudDAPIRecognizeAll(file, apiToken)
-			file.Close()
-			if len(result) > 0 {
-				Json, _ := json.Marshal(result[0])
-				fmt.Printf("%v\n", string(Json))
-				return []SongInfo{result[0]}, nil
-			}
-		}
-		return []SongInfo{}, nil
-	}
-	results := make([][]SongInfo, len(files))
-	var mu = &sync.Mutex{}
-	wg := &sync.WaitGroup{}
-	for i, fileInfo := range files {
-		if i % 20 == 19 {
-			time.Sleep(2 * time.Second)
-		}
-		if i % (skip+every) >= every {
-			continue
-		}
-		wg.Add(1)
-		go func(fileInfo os.FileInfo, i int, dir string) {
-			defer wg.Done()
-			file, err := os.Open(dir + string(os.PathSeparator) + fileInfo.Name())
-			if err != nil {
-				panic(err)
-			}
-			result := AudDAPIRecognizeAll(file, apiToken)
-			file.Close()
-			mu.Lock()
-			results[i] = result
-			mu.Unlock()
-		}(fileInfo, i, dir)
-	}
-	wg.Wait()
-	first := true
-	result := make([]SongInfo, 0)
-	for i, response := range results {
-		l := len(response)
-		for j, song := range response {
-			fmt.Printf("%v: %v/%v: %v\n", i, j, l, song)
-			if first {
-				first = false
-				song.Start = secondsPerFile * i
-				song.End = song.Start + secondsPerFile/l
-				result = append(result, song)
-				continue
-			}
-			if result[len(result)-1].Title == song.Title {
-				newR := result[len(result)-1]
-				newR.End = secondsPerFile*i + secondsPerFile/l
-				result[len(result)-1] = newR
-				continue
-			}
-			song.Start = secondsPerFile*i + (secondsPerFile/l)*j
-			song.End = song.Start + secondsPerFile/l
-			result = append(result, song)
-		}
-	}
-	return result, nil
-}
-
-func SplitVideo(path, tmpDir string, secondsPerFile int) {
-	ffmpeg := exec.Command("ffmpeg", "-i", path, "-q:a", "0", "-map", "a", "-f", "segment", "-segment_time", strconv.Itoa(secondsPerFile), "-c", "copy", tmpDir+"/out%03d.aac")
-	ffmpeg.Run()
-}
-
-func CreateCSV(songs []SongInfo, path string) {
+func CreateCSV(songs []audd.RecognitionEnterpriseResult, path string) {
 	records := make([][]string, 0)
-	for i, song := range songs {
-		records = append(records, []string{strconv.Itoa(i + 1), SecondsToTime(song.Start) + "-" + SecondsToTime(song.End),
-			song.Title, song.Album, song.Label, song.Artist, song.ReleaseDate, song.TimeCode})
+	i := 0
+	for _, result := range songs {
+		for _, song := range result.Songs {
+			i++
+			records = append(records, []string{strconv.Itoa(i), result.Offset,
+				song.Title, song.Album, song.Label, song.Artist, song.ReleaseDate, song.Timecode})
+		}
 	}
 	file, _ := os.Create(path)
 	w := csv.NewWriter(file)
@@ -224,27 +78,14 @@ func CreateCSV(songs []SongInfo, path string) {
 	}
 }
 
-func getCurrentDir() string {
-	currentFile, _ := os.Executable()
-	return filepath.Dir(currentFile)
-}
-
-func remove(dir string) {
-	os.RemoveAll(dir)
-}
-
 func main() {
-	secondsPerFileFlag := flag.Int("s", 9, "Seconds per audio file")
 	UrlFlag := flag.String("url", "https://www.youtube.com/watch?v=ANEOD16twxo", "Link to the YouTube video")
-	untilFirstFlag := flag.Bool("first", false, "Send requests only until first result")
 	apiTokenFlag := flag.String("api_token", "test", "AudD API token")
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
 	skipFlag := flag.Int("skip", 0, "Skip audio files")
 	everyFlag := flag.Int("every", 1, "Audio files between skips")
 	flag.Parse()
-	secondsPerFile := *secondsPerFileFlag
 	Url := *UrlFlag
-	untilFirst := *untilFirstFlag
 	apiToken := *apiTokenFlag
 	pathToCSV := *pathToCSVFlag
 	skip := *skipFlag
@@ -253,28 +94,26 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer videoFile.Close()
 	fmt.Println("Downloading video...")
 	err = DownloadYoutubeVideo(Url, videoFile)
+	videoFile.Close()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Generating audio files...")
-	dir, err := ioutil.TempDir(getCurrentDir(), "temp_")
+	videoFile, err = os.Open("video.mp4")
 	if err != nil {
 		panic(err)
 	}
-	SplitVideo(videoFile.Name(), dir, secondsPerFile)
-	fmt.Println("Sending files to AudD API...")
-	songs, err := RecognizeMultipleFiles(untilFirst, dir, secondsPerFile, apiToken, skip, every)
+	fmt.Println("Sending the file to the AudD API...")
+	client := audd.NewClient(apiToken)
+	client.SetEndpoint(audd.EnterpriseAPIEndpoint)
+	parameters := map[string]string{"skip": strconv.Itoa(skip), "every": strconv.Itoa(every)}
+	songs, err := client.RecognizeLongAudio(videoFile, parameters)
 	if err != nil {
 		panic(err)
 	}
-	remove(dir)
-	if untilFirst {
-		return
-	}
-	fmt.Println("Removing temp files...")
+	fmt.Println("Removing the temp file...")
+	os.Remove("video.mp4")
 	fmt.Println("Creating csv...")
 	CreateCSV(songs, pathToCSV)
 }
