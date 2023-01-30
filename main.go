@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2020 AudD, LLC. All rights reserved.
- * Copyright (c) 2020 Mikhail Samin. All rights reserved.
+ * Copyright (c) 2023 AudD, LLC. All rights reserved.
+ * Copyright (c) 2023 Mikhail Samin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,28 +32,14 @@
 package main
 
 import (
-	"context"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"github.com/AudDMusic/audd-go"
-	"github.com/rylio/ytdl"
 	"log"
 	"os"
 	"strconv"
 )
-
-func DownloadYoutubeVideo(Url string, file *os.File) error {
-	c := ytdl.DefaultClient
-	vid, err := c.GetVideoInfo(context.TODO(), Url)
-	if err != nil {
-		return err
-	}
-	if len(vid.Formats) == 0 {
-		return fmt.Errorf("ytdl can't find available formats")
-	}
-	return c.Download(context.TODO(), vid, vid.Formats[0], file)
-}
 
 func CreateCSV(songs []audd.RecognitionEnterpriseResult, path string) {
 	records := make([][]string, 0)
@@ -79,7 +65,7 @@ func CreateCSV(songs []audd.RecognitionEnterpriseResult, path string) {
 }
 
 func main() {
-	UrlFlag := flag.String("url", "https://www.youtube.com/watch?v=ANEOD16twxo", "Link to the YouTube video")
+	UrlFlag := flag.String("url", "https://www.youtube.com/watch?v=ZgRuRcQqzTo", "Link to the YouTube video")
 	apiTokenFlag := flag.String("api_token", "test", "AudD API token")
 	pathToCSVFlag := flag.String("csv", "audd.csv", "Path to the .csv which will be created")
 	skipFlag := flag.Int("skip", 0, "Skip audio files")
@@ -90,30 +76,14 @@ func main() {
 	pathToCSV := *pathToCSVFlag
 	skip := *skipFlag
 	every := *everyFlag
-	videoFile, err := os.Create("video.mp4")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Downloading video...")
-	err = DownloadYoutubeVideo(Url, videoFile)
-	videoFile.Close()
-	if err != nil {
-		panic(err)
-	}
-	videoFile, err = os.Open("video.mp4")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Sending the file to the AudD API...")
+	fmt.Println("Sending a request to the AudD API...")
 	client := audd.NewClient(apiToken)
 	client.SetEndpoint(audd.EnterpriseAPIEndpoint)
 	parameters := map[string]string{"skip": strconv.Itoa(skip), "every": strconv.Itoa(every)}
-	songs, err := client.RecognizeLongAudio(videoFile, parameters)
+	songs, err := client.RecognizeLongAudio(Url, parameters)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Removing the temp file...")
-	os.Remove("video.mp4")
 	fmt.Println("Creating csv...")
 	CreateCSV(songs, pathToCSV)
 }
