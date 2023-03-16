@@ -1,4 +1,4 @@
-module AudDMusic/youtube-recognizer
+module github.com/AudDMusic/youtube-recognizer
 
 go 1.19
 
